@@ -1,18 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Security
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from . import schemas, models, crud, database
 from .auth import get_current_user
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
 @router.post("/pets", response_model=schemas.PetResponse)
-def add_pet(pet: schemas.PetCreate, db: Session = Depends(database.get_db), user: models.User = Depends(get_current_user)):
+def add_pet(pet: schemas.PetCreate, db: Session = Depends(database.get_db), token: str = Security(oauth2_scheme),user: models.User = Security(get_current_user)
+):
     if not user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     return crud.create_pet(db, pet)
 
 @router.put("/pets/{pet_id}", response_model=schemas.PetResponse)
-def update_pet(pet_id: int, pet_update: schemas.PetUpdate, db: Session = Depends(database.get_db), user: models.User = Depends(get_current_user)):
+def update_pet(pet_id: int, pet_update: schemas.PetUpdate, db: Session = Depends(database.get_db), token: str = Security(oauth2_scheme), user: models.User = Security(get_current_user)):
     if not user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     pet = crud.get_pet_by_id(db, pet_id)
@@ -21,7 +25,7 @@ def update_pet(pet_id: int, pet_update: schemas.PetUpdate, db: Session = Depends
     return crud.update_pet(db, pet, pet_update)
 
 @router.delete("/pets/{pet_id}", response_model=dict)
-def remove_pet(pet_id: int, db: Session = Depends(database.get_db), user: models.User = Depends(get_current_user)):
+def remove_pet(pet_id: int, db: Session = Depends(database.get_db), token: str = Security(oauth2_scheme), user: models.User = Security(get_current_user)):
     if not user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     pet = crud.get_pet_by_id(db, pet_id)
@@ -31,13 +35,13 @@ def remove_pet(pet_id: int, db: Session = Depends(database.get_db), user: models
     return {"detail": "Pet deleted successfully"}
 
 @router.get("/pets", response_model=list[schemas.PetResponse])
-def view_all_pets(db: Session = Depends(database.get_db), user: models.User = Depends(get_current_user)):
+def view_all_pets(db: Session = Depends(database.get_db), token: str = Security(oauth2_scheme), user: models.User = Security(get_current_user)):
     if not user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     return crud.get_all_pets(db)
 
 @router.get("/adoptions", response_model=list[schemas.AdoptionResponse])
-def view_all_adoptions(db: Session = Depends(database.get_db), user: models.User = Depends(get_current_user)):
+def view_all_adoptions(db: Session = Depends(database.get_db), token: str = Security(oauth2_scheme), user: models.User = Security(get_current_user)):
     if not user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     return crud.get_all_adoptions(db)

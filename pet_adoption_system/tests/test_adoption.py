@@ -7,7 +7,7 @@ client = TestClient(app)
 #Fixture for getting an authenticated user token
 @pytest.fixture
 def user_token():
-    user_data = {"username": "testuser", "password": "testpass"}
+    user_data = {"admin": "useradmin", "password": "useradmin"}
     client.post("/auth/signup", json=user_data)  # Create test user
     response = client.post("/auth/login", json=user_data)
     return response.json()["access_token"]
@@ -15,7 +15,7 @@ def user_token():
 #Fixture for getting an admin token (to create pets)
 @pytest.fixture
 def admin_token():
-    response = client.post("/auth/login", json={"username": "admin", "password": "adminpass"})
+    response = client.post("/auth/login", json={"username": "admin5", "password": "admin5"})
     return response.json()["access_token"]
 
 #Fixture for adding a test pet (only admin can add)

@@ -1,20 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Security
 from sqlalchemy.orm import Session
 from datetime import timedelta
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from . import schemas, models, database, crud
 from .utils import hash_password, verify_password, create_access_token
+import os
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-SECRET_KEY = "abcd"
+SECRET_KEY = os.getenv("SECRET_KEY","abcd")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)):
+def get_current_user(token: str = Security(oauth2_scheme), db: Session = Depends(database.get_db)):
     """Extract user from JWT token"""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
