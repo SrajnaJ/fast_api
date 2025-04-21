@@ -2,21 +2,30 @@ from fastapi import APIRouter, Depends, HTTPException, status, Security
 from sqlalchemy.orm import Session
 from datetime import timedelta
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from . import schemas, models, database, crud
 from .utils import hash_password, verify_password, create_access_token
 import os
+from .config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+# oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+security=HTTPBearer()
 
-SECRET_KEY = os.getenv("SECRET_KEY","abcd")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+# SECRET_KEY = os.getenv("SECRET_KEY","abcd")
+# ALGORITHM = "HS256"
+# ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-def get_current_user(token: str = Security(oauth2_scheme), db: Session = Depends(database.get_db)):
+def get_current_user(credentials: HTTPAuthorizationCredentials =Security(security), db: Session = Depends(database.get_db)):
     """Extract user from JWT token"""
+
+    token=credentials.credentials
+
+    # print("Token received:", token)
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid authentication credentials",
@@ -24,16 +33,30 @@ def get_current_user(token: str = Security(oauth2_scheme), db: Session = Depends
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        # print("Decoded Payload: ",payload)
+
         user_id: int = payload.get("sub")
         if user_id is None:
             raise credentials_exception
-    except JWTError:
+    except JWTError as e:
+        # print("JWT Error:",str(e))
         raise credentials_exception
     
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if user is None:
         raise credentials_exception
     return user
+
+def get_current_admin_user(
+    user: models.User = Depends(get_current_user)
+):
+    if not user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have admin privileges"
+        )
+    return user
+
 
 @router.post("/signup", response_model=schemas.UserResponse)
 def signup(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
@@ -48,20 +71,20 @@ def signup(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
 @router.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(database.get_db)):
     """Authenticate user and return JWT token"""
-    print("Received login request for:", form_data.username)
+    # print("Received login request for:", form_data.username)
 
-    user = crud.get_user_by_email(db, form_data.username)
+    user = crud.get_user_by_username(db, form_data.username)
 
     if not user:
-        print("User not found in database")
+        # print("User not found in database")
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    print("Stored Hashed Password:", user.hashed_password)
-    print("Entered Password:", form_data.password)
-    print("Password Match:", verify_password(form_data.password, user.hashed_password))
+    # print("Stored Hashed Password:", user.hashed_password)
+    # print("Entered Password:", form_data.password)
+    # print("Password Match:", verify_password(form_data.password, user.hashed_password))
 
     if not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=401, detail="Invalid username or password")
 
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -70,10 +93,10 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.post("/refresh")
-def refresh_token(token: str = Depends(oauth2_scheme)):
+def refresh_token(token: HTTPAuthorizationCredentials = Security(security)):
     """Refresh the access token (for simplicity, reissue the same token)"""
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token.credentials, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")

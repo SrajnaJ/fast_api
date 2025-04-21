@@ -1,42 +1,99 @@
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from fastapi.testclient import TestClient
+from app.database import Base, get_engine, get_db
 from app.main import app
-from app.database import get_db, Base
 
-# Replace with your MySQL test database credentials
-TEST_DATABASE_URL = "mysql+pymysql://root:Abcd%401234@localhost/pet_adoption_db"
+# client = TestClient(app)
+@pytest.fixture(scope="session")
+def test_engine():
+    from app import models
+    engine = get_engine(is_test=True)
+    Base.metadata.create_all(bind=engine)
+    yield engine
+    Base.metadata.drop_all(bind=engine)
 
-engine = create_engine(TEST_DATABASE_URL)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Dependency override function
-def override_get_db():
-    db = TestingSessionLocal()
+@pytest.fixture(scope="function")
+def db_session(test_engine):
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+    session = TestingSessionLocal()
     try:
-        yield db
+        yield session
     finally:
-        db.close()
+        session.close()
+        
+@pytest.fixture
+def test_client(test_engine):
+    from app.database import get_db
 
-# Apply dependency override
-app.dependency_overrides[get_db] = override_get_db
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
-@pytest.fixture(scope="module")
-def test_db():
-    """Fixture to set up and tear down the test database"""
-    Base.metadata.create_all(bind=engine)  # Create tables
-    yield  # Run the tests
-    Base.metadata.drop_all(bind=engine)  # Clean up after tests
+    def override_get_db():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
 
-@pytest.fixture(scope="module")
-def client():
-    """Test client for FastAPI"""
-    return TestClient(app)
+    app.dependency_overrides[get_db] = override_get_db
+
+    client = TestClient(app)
+    yield client
+
+    # Clear overrides after test
+    app.dependency_overrides.clear()
 
 @pytest.fixture
-def admin_token(client):
-    """Fixture to get an admin authentication token"""
-    response = client.post("/auth/login", data={"username": "admin@example.com", "password": "adminpass"})
-    assert response.status_code == 200, f"Login failed: {response.json()}"
-    return response.json().get("access_token")
+def admin_credentials():
+    return {"username": "admin", "password": "adminpass"}
+
+@pytest.fixture
+def create_user(test_client):
+    def _create_user(username, email, password):
+        response = test_client.post("/auth/signup", json={
+            "username": username,
+            "email": email,
+            "password": password
+        })
+        return response
+    return _create_user
+
+@pytest.fixture
+def create_admin(db_session):
+    def _create_admin(username, email, password):
+        from app.models import User
+        from app.utils import hash_password
+
+        existing_admin = db_session.query(User).filter(User.username == username).first()
+        if existing_admin:
+            db_session.delete(existing_admin)
+            db_session.commit()
+
+        hashed_password = hash_password(password)
+        admin = User(
+            username=username,
+            email=email,
+            hashed_password=hashed_password,
+            is_admin=True
+        )
+        db_session.add(admin)
+        db_session.commit()
+        db_session.refresh(admin)
+        return admin
+    return _create_admin
+
+@pytest.fixture
+def get_token(test_client):
+    def _get_token(username, password):
+        response = test_client.post("/auth/login", data={
+            "username": username,
+            "password": password
+        })
+        assert response.status_code == 200, f"Login failed: {response.json()}"
+        return response.json()["access_token"]
+    return _get_token

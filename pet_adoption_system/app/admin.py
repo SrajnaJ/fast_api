@@ -18,12 +18,12 @@ def create_admin():
     
     if not admin:
         hashed_password = pwd_context.hash(ADMIN_PASSWORD)  # Change to a secure password
-        admin_user = User(username=ADMIN_USERNAME, password_hash=hashed_password, role="admin")
+        admin_user = User(username=ADMIN_USERNAME, email="admin@example.com",hashed_password=hashed_password, is_admin=True)
         db.add(admin_user)
         db.commit()
-        print("✅ Admin user created successfully!")
-    else:
-        print("✅ Admin user already exists.")
+        # print("Admin user created successfully!")
+    # else:
+        # print("Admin user already exists.")
     db.close()
 
 # Call this function at application startup
