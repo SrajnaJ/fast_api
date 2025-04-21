@@ -1,0 +1,41 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.venv/
+env/
+venv/
+
+# Environment variables
+.env
+
+# MySQL / SQLite / other DB files (if any)
+*.sqlite3
+
+# VSCode settings (if you want)
+.vscode/
+
+# macOS junk files
+.DS_Store
+
+# Log files
+*.log
+
+# Coverage reports
+htmlcov/
+.coverage
+coverage.xml
+
+# Test output
+test-results/
+
+# Pydantic compiled cache
+.pydantic/
+
+# Migrations (if you're generating with alembic or similar)
+migrations/
+
+# Any OS-specific files
+Thumbs.db
