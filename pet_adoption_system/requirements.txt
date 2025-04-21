@@ -13,3 +13,5 @@ bcrypt<4.1.0
 pytest
 httpx
 pytest-asyncio
+dotenv
+pymysql
