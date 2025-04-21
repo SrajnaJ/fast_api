@@ -41,7 +41,7 @@ create database your_test_db_name;
 ```
 
 #### Update `.env` with your **MySQL and django credentials**:
-
+(url: mysql+pymysql://...)
 ```ini
 DATABASE_URL=your_db_url
 TEST_DATABASE_URL=your_test_db_url
